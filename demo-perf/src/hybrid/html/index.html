@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DemoBox · 性能面板</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Menlo', monospace;
+      background: #0b0e14;
+      color: #c9d1d9;
+      min-height: 100vh;
+      padding: 16px 14px 40px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 12px 0 8px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f0f6fc;
+      letter-spacing: 0.5px;
+    }
+    .header .sub {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+
+    /* ====== 总耗时大卡片 ====== */
+    .total-card {
+      background: linear-gradient(135deg, #1a1f2e 0%, #161b25 100%);
+      border: 1px solid #30363d;
+      border-radius: 14px;
+      padding: 20px 18px;
+      margin: 16px 0 18px;
+      text-align: center;
+    }
+    .total-card .ms {
+      font-size: 52px;
+      font-weight: 800;
+      color: #58a6ff;
+      line-height: 1;
+    }
+    .total-card .ms.warn  { color: #d29922; }
+    .total-card .ms.good  { color: #3fb950; }
+    .total-card .ms.bad   { color: #f85149; }
+    .total-card .label {
+      font-size: 13px;
+      color: #8b949e;
+      margin-top: 6px;
+      letter-spacing: 1px;
+    }
+
+    /* ====== 时间线 ====== */
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 20px 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .timeline { position: relative; padding-left: 24px; }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: #30363d;
+      border-radius: 1px;
+    }
+
+    .tl-item {
+      position: relative;
+      padding: 10px 0 10px 18px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .tl-item::before {
+      content: '';
+      position: absolute;
+      left: -19px;
+      top: 16px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #30363d;
+      border: 2px solid #0b0e14;
+    }
+    .tl-item.phase-native::before  { background: #f0883e; box-shadow: 0 0 6px rgba(240,136,62,0.4); }
+    .tl-item.phase-webview::before { background: #58a6ff; box-shadow: 0 0 6px rgba(88,166,255,0.4); }
+    .tl-item.phase-h5::before      { background: #3fb950; box-shadow: 0 0 6px rgba(63,185,80,0.4); }
+
+    .tl-item .desc { color: #c9d1d9; }
+    .tl-item .val  { color: #8b949e; font-weight: 500; white-space: nowrap; }
+    .tl-item .val.highlight { color: #58a6ff; font-weight: 700; font-size: 14px; }
+
+    /* ====== 分段耗时条 ====== */
+    .bar-section { margin: 16px 0; }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+    .bar-row .bar-label {
+      width: 110px;
+      min-width: 110px;
+      color: #8b949e;
+      text-align: right;
+      padding-right: 10px;
+    }
+    .bar-row .bar-track {
+      flex: 1;
+      height: 20px;
+      background: #161b25;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-row .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: flex;
+      align-items: center;
+      padding-left: 6px;
+      font-weight: 600;
+      color: #fff;
+      font-size: 11px;
+    }
+    .bar-row .bar-ms {
+      width: 70px;
+      min-width: 70px;
+      padding-left: 8px;
+      color: #c9d1d9;
+      font-weight: 500;
+    }
+
+    .fill-native   { background: linear-gradient(90deg, #f0883e, #e06c2a); }
+    .fill-webview   { background: linear-gradient(90deg, #58a6ff, #388bfd); }
+    .fill-h5-parse  { background: linear-gradient(90deg, #a371f7, #8957e5); }
+    .fill-h5-render { background: linear-gradient(90deg, #3fb950, #2ea043); }
+    .fill-h5-assets { background: linear-gradient(90deg, #d29922, #b8871a); }
+
+    /* ====== 页面度量 ====== */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .metric-card {
+      background: #161b25;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-card .val {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .metric-card .val.green { color: #3fb950; }
+    .metric-card .val.blue  { color: #58a6ff; }
+    .metric-card .val.orange { color: #f0883e; }
+    .metric-card .val.red   { color: #f85149; }
+    .metric-card .lbl {
+      font-size: 11px;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+
+    /* ====== 底部信息 ====== */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #484f58;
+      padding: 12px 0;
+    }
+
+    .missing {
+      color: #484f58;
+      font-style: italic;
+    }
+
+    .refresh-hint {
+      text-align: center;
+      font-size: 11px;
+      color: #484f58;
+      margin-top: 24px;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>DemoBox · 启动性能</h1>
+    <div class="sub" id="boot-type">检测中...</div>
+  </div>
+
+  <!-- 总耗时 -->
+  <div class="total-card">
+    <div class="ms" id="total-ms">--</div>
+    <div class="label">点击图标 → 页面完全可交互</div>
+  </div>
+
+  <!-- 分段耗时柱状图 -->
+  <div class="bar-section" id="bar-section"></div>
+
+  <!-- 页面核心 Web Vitals -->
+  <div class="section-title">Web Vitals</div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="val blue" id="val-fcp">--</div>
+      <div class="lbl">FCP · 首次内容绘制</div>
+    </div>
+    <div class="metric-card">
+      <div class="val green" id="val-lcp">--</div>
+      <div class="lbl">LCP · 最大内容绘制</div>
+    </div>
+    <div class="metric-card">
+      <div class="val orange" id="val-tti">--</div>
+      <div class="lbl">TTI · 可交互时间</div>
+    </div>
+    <div class="metric-card">
+      <div class="val" id="val-domready">--</div>
+      <div class="lbl">DOM Ready</div>
+    </div>
+  </div>
+
+  <!-- 完整时间线 -->
+  <div class="section-title">全链路时间线</div>
+  <div class="timeline" id="timeline"></div>
+
+  <!-- 底部环境信息 -->
+  <div class="info-row" id="env-info"></div>
+
+  <div class="refresh-hint">数据基于本次冷启动采集 · 杀进程重新打开可复测</div>
+
+  <script>
+  (function() {
+    // ── 解析 APP 侧传来的时间戳 ──
+    var params = new URLSearchParams(window.location.search);
+    var APP_T0       = +(params.get('t0') || 0);       // App.onLaunch 的 Date.now()
+    var APP_STARTUP  = +(params.get('startup') || 0);   // plus.runtime.launchLoadedTime (ms)
+    var APP_PAGE_TS  = +(params.get('t_page') || 0);    // 进入 webview 页面时刻
+    var APP_WEBVIEW_TS = +(params.get('t_webview') || 0); // webview 开始加载 URL 时刻
+
+    // ── H5 侧的 Performance API ──
+    var pt = performance.timing;
+    var navStart = pt.navigationStart || pt.fetchStart || 0;
+
+    // 现代 API (Navigation Timing Level 2)
+    var navEntries = performance.getEntriesByType('navigation');
+    var nav2 = navEntries.length > 0 ? navEntries[0] : null;
+
+    // ── 计算各阶段耗时 ──
+    var phases = [];
+
+    // Phase 1: 进程创建 → App.onLaunch (原生启动)
+    // 注意: APP_STARTUP 可能为 0 (热启动时 launchLoadedTime 返回 0)，不能用 truthy 判断
+    if (APP_T0 && typeof APP_STARTUP === 'number') {
+      phases.push({
+        name: APP_STARTUP > 20 ? '进程创建 → JS 引擎就绪 [冷启]' : 'JS 引擎就绪 [热启]',
+        phase: 'native',
+        start: 0,
+        dur: Math.max(APP_STARTUP, 0),
+        detail: APP_STARTUP > 20 ? '原生进程 + 5+ Runtime 初始化' : 'Runtime 常驻，进程未重建'
+      });
+    }
+
+    // Phase 2: App.onLaunch → 进入 webview 页面
+    if (APP_T0 && APP_PAGE_TS) {
+      var dur = APP_PAGE_TS - APP_T0;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'App.onLaunch → 路由到首页',
+          phase: 'native',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: 'Vue 初始化 + Pinia + 路由匹配'
+        });
+      }
+    }
+
+    // Phase 3: 页面创建 → webview 开始加载 H5
+    if (APP_PAGE_TS && APP_WEBVIEW_TS) {
+      var dur = APP_WEBVIEW_TS - APP_PAGE_TS;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'WebView 容器创建',
+          phase: 'webview',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: '创建 WebView 实例 + 设置 src'
+        });
+      }
+    }
+
+    // Phase 4: webview 开始加载 → H5 navigationStart
+    if (APP_WEBVIEW_TS && navStart) {
+      var dur = navStart - APP_WEBVIEW_TS;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'WebView 发起请求 → 收到响应',
+          phase: 'webview',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: 'DNS + 连接 + 请求本地 hybrid 文件'
+        });
+      }
+    }
+
+    // Phase 5: navigationStart → domLoading
+    if (navStart && pt.domLoading) {
+      var dur = pt.domLoading - navStart;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'HTML 解析开始',
+          phase: 'h5',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: '收到首字节 → 开始解析 HTML'
+        });
+      }
+    }
+
+    // Phase 6: domLoading → domInteractive
+    if (pt.domLoading && pt.domInteractive) {
+      var dur = pt.domInteractive - pt.domLoading;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'DOM 解析 & 构建',
+          phase: 'h5',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: 'HTML → DOM Tree + CSSOM'
+        });
+      }
+    }
+
+    // Phase 7: domInteractive → domComplete
+    if (pt.domInteractive && pt.domComplete) {
+      var dur = pt.domComplete - pt.domInteractive;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'DOM 完成 & 资源加载',
+          phase: 'h5',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: 'deferred JS + 子资源加载'
+        });
+      }
+    }
+
+    // Phase 8: domComplete → loadEventEnd
+    if (pt.domComplete && pt.loadEventEnd) {
+      var dur = pt.loadEventEnd - pt.domComplete;
+      if (dur > 0 && dur < 60000) {
+        phases.push({
+          name: 'window.onload 完成',
+          phase: 'h5',
+          start: phases.length > 0 ? phases[phases.length-1].start + phases[phases.length-1].dur : 0,
+          dur: dur,
+          detail: 'load 事件处理完毕'
+        });
+      }
+    }
+
+    // ── 冷 / 热启动判定 ──
+    var isCold = typeof APP_STARTUP === 'number' && APP_STARTUP > 50;
+    document.getElementById('boot-type').textContent =
+      isCold ? '冷启动 · Cold Start' : '热启动 · Warm Start (Runtime 未重建)';
+    phases = phases.filter(function(p) { return p.dur >= 0 && p.dur < 60000; });
+
+    // ── 计算总耗时 ──
+    var totalMs = 0;
+    if (phases.length > 0) {
+      var last = phases[phases.length - 1];
+      totalMs = last.start + last.dur;
+    }
+
+    // 总耗时 = 原生启动 + JS 初始化 + H5 加载
+    // APP_T0 是 JS 引擎开始执行的时刻，原生启动时间 = APP_STARTUP
+    // 进程创建时刻 ≈ APP_T0 - APP_STARTUP
+    // 真实总耗时 = loadEventEnd - (APP_T0 - APP_STARTUP)
+    if (APP_T0 && pt.loadEventEnd && pt.loadEventEnd > 0) {
+      totalMs = pt.loadEventEnd - APP_T0 + (typeof APP_STARTUP === 'number' ? APP_STARTUP : 0);
+    }
+
+    // ── 渲染总耗时卡片 ──
+    var totalEl = document.getElementById('total-ms');
+    if (totalMs > 0) {
+      totalEl.textContent = totalMs.toFixed(0) + ' ms';
+      totalEl.className = 'ms ' + (totalMs <= 1500 ? 'good' : totalMs <= 2500 ? 'warn' : 'bad');
+    } else {
+      totalEl.textContent = '--';
+    }
+
+    // ── 渲染分段耗时条 ──
+    var colors = ['fill-native', 'fill-native', 'fill-webview', 'fill-webview', 'fill-h5-parse', 'fill-h5-parse', 'fill-h5-render', 'fill-h5-assets'];
+    var sectionEl = document.getElementById('bar-section');
+    if (phases.length > 0) {
+      var maxTotal = totalMs || 5000;
+      var html = '';
+      phases.forEach(function(p, i) {
+        var w = Math.max((p.dur / maxTotal) * 100, 2);
+        html += '<div class="bar-row">' +
+          '<span class="bar-label">' + p.name + '</span>' +
+          '<span class="bar-track"><span class="bar-fill ' + (colors[i % colors.length]) + '" style="width:' + w.toFixed(1) + '%">' + (w > 8 ? p.dur.toFixed(0) + 'ms' : '') + '</span></span>' +
+          '<span class="bar-ms">' + p.dur.toFixed(0) + ' ms</span>' +
+          '</div>';
+      });
+      sectionEl.innerHTML = html;
+    } else {
+      sectionEl.innerHTML = '<div class="missing">未能获取完整的分段数据，请确认在 APP 环境运行</div>';
+    }
+
+    // ── Web Vitals ──
+    function setMetric(id, val, unit) {
+      var el = document.getElementById(id);
+      if (val != null && val > 0) {
+        el.textContent = (typeof val === 'number' ? val.toFixed(0) : val) + (unit || 'ms');
+      }
+    }
+
+    // FCP - 用 PerformanceObserver 异步获取
+    if (window.PerformanceObserver) {
+      try {
+        var fcpObserver = new PerformanceObserver(function(list) {
+          var entries = list.getEntriesByName('first-contentful-paint');
+          if (entries.length > 0) {
+            var fcp = entries[0].startTime;
+            setMetric('val-fcp', fcp);
+          }
+        });
+        fcpObserver.observe({ type: 'paint', buffered: true });
+      } catch(e) {}
+
+      try {
+        var lcpObserver = new PerformanceObserver(function(list) {
+          var entries = list.getEntries();
+          if (entries.length > 0) {
+            var lcp = entries[entries.length - 1].startTime;
+            setMetric('val-lcp', lcp);
+          }
+        });
+        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+      } catch(e) {}
+
+      try {
+        var ltiObserver = new PerformanceObserver(function(list) {
+          var entries = list.getEntries();
+          entries.forEach(function(entry) {
+            if (!entry.hadRecentInput) {
+              setMetric('val-tti', entry.startTime);
+            }
+          });
+        });
+        ltiObserver.observe({ type: 'longtask', buffered: true });
+        // fallback: use domInteractive as approximate TTI
+        if (pt.domInteractive && navStart) {
+          setTimeout(function() {
+            var el = document.getElementById('val-tti');
+            if (el.textContent === '--') {
+              setMetric('val-tti', pt.domInteractive - navStart);
+            }
+          }, 2000);
+        }
+      } catch(e) {
+        // longtask not supported, use domInteractive
+        if (pt.domInteractive && navStart) {
+          setMetric('val-tti', pt.domInteractive - navStart);
+        }
+      }
+    }
+
+    // DOM Ready + TTI — 延迟到 load 事件后，确保 performance.timing 字段已填充
+    function captureFinalMetrics() {
+      var t = performance.timing;
+      var ns = t.navigationStart || t.fetchStart || 0;
+      if (t.domContentLoadedEventEnd && ns) {
+        setMetric('val-domready', t.domContentLoadedEventEnd - ns);
+      }
+      // TTI 近似 = domInteractive - navigationStart
+      if (t.domInteractive && ns) {
+        var el = document.getElementById('val-tti');
+        if (el.textContent === '--') {
+          setMetric('val-tti', t.domInteractive - ns);
+        }
+      }
+    }
+    if (document.readyState === 'complete') {
+      captureFinalMetrics();
+    } else {
+      window.addEventListener('load', captureFinalMetrics);
+    }
+
+    // ── 渲染完整时间线 ──
+    function buildTimeline() {
+      var timeline = document.getElementById('timeline');
+      var items = [];
+
+      // 进程启动估算
+      if (APP_T0 && typeof APP_STARTUP === 'number') {
+        items.push({
+          cls: 'phase-native',
+          desc: '[Native] 点击图标 · 进程创建',
+          val: 't = 0ms',
+        });
+        items.push({
+          cls: 'phase-native',
+          desc: '[Native] 5+ Runtime 初始化完成',
+          val: '+' + APP_STARTUP.toFixed(0) + 'ms',
+        });
+      }
+
+      if (APP_T0) {
+        items.push({
+          cls: 'phase-webview',
+          desc: '[App]   App.onLaunch 触发',
+          val: (typeof APP_STARTUP === 'number' ? '+' + APP_STARTUP.toFixed(0) + 'ms' : ''),
+        });
+      }
+
+      if (APP_PAGE_TS && APP_T0) {
+        var d = APP_PAGE_TS - APP_T0;
+        items.push({
+          cls: 'phase-webview',
+          desc: '[App]   路由到首页 · WebView 创建',
+          val: '+' + d.toFixed(0) + 'ms',
+        });
+      }
+
+      if (APP_WEBVIEW_TS && APP_T0) {
+        var d = APP_WEBVIEW_TS - APP_T0;
+        items.push({
+          cls: 'phase-webview',
+          desc: '[App]   WebView 加载 H5 URL',
+          val: '+' + d.toFixed(0) + 'ms',
+        });
+      }
+
+      if (navStart) {
+        var base = APP_T0 || navStart;
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    开始导航 (navigationStart)',
+          val: base === navStart ? '0ms' : '+' + (navStart - base).toFixed(0) + 'ms',
+        });
+      }
+
+      if (pt.domLoading && navStart) {
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    开始解析 HTML (domLoading)',
+          val: '+' + (pt.domLoading - navStart).toFixed(0) + 'ms',
+        });
+      }
+
+      if (pt.domInteractive && navStart) {
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    DOM 可交互 (domInteractive)',
+          val: '+' + (pt.domInteractive - navStart).toFixed(0) + 'ms',
+        });
+      }
+
+      if (pt.domContentLoadedEventEnd && navStart) {
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    DOMContentLoaded 完成',
+          val: '+' + (pt.domContentLoadedEventEnd - navStart).toFixed(0) + 'ms',
+        });
+      }
+
+      if (pt.domComplete && navStart) {
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    DOM 完成 (domComplete)',
+          val: '+' + (pt.domComplete - navStart).toFixed(0) + 'ms',
+        });
+      }
+
+      if (pt.loadEventEnd && navStart) {
+        items.push({
+          cls: 'phase-h5',
+          desc: '[H5]    页面完全加载 (loadEventEnd)',
+          val: '+' + (pt.loadEventEnd - navStart).toFixed(0) + 'ms',
+        });
+      }
+
+      // 渲染
+      var html = '';
+      items.forEach(function(item) {
+        html += '<div class="tl-item ' + item.cls + '">' +
+          '<span class="desc">' + item.desc + '</span>' +
+          '<span class="val' + (item.cls.indexOf('h5') > -1 && item.val.indexOf('+0') === 0 ? ' highlight' : '') + '">' + item.val + '</span>' +
+          '</div>';
+      });
+
+      if (items.length === 0) {
+        html = '<div class="missing">未能获取性能数据</div>';
+      }
+
+      timeline.innerHTML = html;
+    }
+
+    // 延迟渲染，等 PerformanceObserver 回调跑完
+    setTimeout(buildTimeline, 100);
+
+    // ── 环境信息 ──
+    var ua = navigator.userAgent;
+    var isAndroid = /Android/i.test(ua);
+    var isIOS = /iPhone|iPad|iPod/i.test(ua);
+    var platform = isAndroid ? 'Android' : isIOS ? 'iOS' : 'Browser';
+    document.getElementById('env-info').innerHTML =
+      '平台: ' + platform + ' &nbsp;·&nbsp; ' +
+      'UA: ' + (ua.length > 60 ? ua.substring(0, 60) + '...' : ua);
+
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "DemoBox · 性能面板",
+				"navigationBarBackgroundColor": "#0b0e14",
+				"navigationBarTextStyle": "white",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "DemoBox",
+		"navigationBarBackgroundColor": "#0b0e14",
+		"backgroundColor": "#0b0e14"
+	}
+}
