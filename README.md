@@ -59,3 +59,7 @@ uni-app 3.0 + Vue 3 + Vite 项目。一个 APP 壳内嵌 H5 性能面板：
 ├── task-e-perf/            # 任务 E 方案
 └── demo-perf/              # Demo App 源码
 ```
+
+## App 截图
+
+![DemoBox 性能面板](微信图片_20260603154847_87_4682.jpg)
